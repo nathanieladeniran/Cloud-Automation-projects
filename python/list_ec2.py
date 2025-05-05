@@ -1,10 +1,18 @@
 import boto3
+import json
 
+#gettting AWS configuration and credential path
+def get_aws_config(config_path='config/aws_config.json'):
+    with open(config_path) as path:
+        config = json.load(path)
+    return config
+
+config = get_aws_config()
 
 session = boto3.Session(
-    aws_access_key_id = 'AKIARRBIN34MDLV4UNNE',
-    aws_secret_access_key = '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',
-    region_name= 'us-east-1',
+    aws_access_key_id = config['aws_access_key_id'],
+    aws_secret_access_key = config['aws_secret_access_key'],
+    region_name = config['region_name']
 )
 ec2 = session.client('ec2')
 
@@ -35,7 +43,7 @@ def listInstancesWithFIlter():
             print (f"Instance ID: {instance['InstanceId']}")
 
 def createInstance():
-    # Launch an instance
+    # Create/Launch an instance
     ec2 = session.resource('ec2')
     instances = ec2.create_instances(
         ImageId='ami-000e875cc81ac2df0',  # Amazon Linux 2 AMI for us-east-1
@@ -46,8 +54,27 @@ def createInstance():
         SecurityGroupIds=['sg-00b0d9396f5740072'],  # Replace with your security group ID
     )
     print("Launched EC2 Instance with ID:", instances[0].id)
-
-            
-print(listInstancesWithFIlter())
-# if __name__ == "__main__":
-#     main()
+    
+           
+def main():
+     
+     while True:
+        print("\n📋 Choose a Task to Perform:")
+        print("1️⃣ List EC2 All Instances")
+        print("2️⃣ List instance with Tag AutoStart")
+        print("3️⃣ Create Instance")
+        
+        task = input("Select an operation: ")
+        
+        if task == "1":
+            print(listInstances())
+        elif task == "2":
+            print(listInstancesWithFIlter())
+        elif task == "3":
+            print(createInstance())
+        else:
+            print("invalid number selected")
+        
+# print(listInstancesWithFIlter())
+if __name__ == "__main__":
+    main()
