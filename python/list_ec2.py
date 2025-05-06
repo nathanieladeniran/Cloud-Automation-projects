@@ -1,12 +1,6 @@
 import boto3
-import json
 from botocore.exceptions import ClientError
-
-#gettting AWS configuration and credential path
-def get_aws_config(config_path='config/aws_config.json'):
-    with open(config_path) as path:
-        config = json.load(path)
-    return config
+from config.load_config import get_aws_config
 
 config = get_aws_config()
 
