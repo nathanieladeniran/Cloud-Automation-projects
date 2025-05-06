@@ -47,7 +47,7 @@ def main():
         elif action == "Stop":
             start_stop_instances("Stop")
         elif action == "Reboot":
-            start_stop_instances("Stop")
+            start_stop_instances("Reboot")
         else:
             print("Invalid action supplied")
           
