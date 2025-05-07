@@ -12,7 +12,7 @@ session = boto3.Session(
 
 ec2 = session.client('ec2')
 
-def start_stop_instances(state):
+def startStopInstances(state):
     
     response = ec2.describe_instances()
 
@@ -43,11 +43,11 @@ def main():
         action = input("\n Type an action: ")
         
         if action == "Start":
-            start_stop_instances("Start")
+            startStopInstances("Start")
         elif action == "Stop":
-            start_stop_instances("Stop")
+            startStopInstances("Stop")
         elif action == "Reboot":
-            start_stop_instances("Reboot")
+            startStopInstances("Reboot")
         else:
             print("Invalid action supplied")
           

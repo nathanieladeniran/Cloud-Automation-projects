@@ -1,6 +1,7 @@
 import boto3
 from botocore.exceptions import ClientError
 from config.load_config import get_aws_config
+from list_ami import getAmazonLinux2Ami
 
 config = get_aws_config()
 
@@ -39,9 +40,10 @@ def listInstancesWithFIlter():
 
 # Create/Launch an instance
 def createInstance():    
+    ami_id = getAmazonLinux2Ami(config['region_name'], distro='amazon')
     ec2_resource = session.resource('ec2')
     instances = ec2_resource.create_instances(
-        ImageId='ami-000e875cc81ac2df0',  # Amazon Linux 2 AMI for us-east-1
+        ImageId=ami_id,  # Amazon Linux 2 AMI for us-east-1
         MinCount=1,
         MaxCount=1,
         InstanceType='t2.micro',
