@@ -2,6 +2,7 @@ import boto3
 from botocore.exceptions import ClientError
 from config.load_config import get_aws_config
 from list_ami import getAmazonLinux2Ami
+import uuid
 
 config = get_aws_config()
 
@@ -53,7 +54,7 @@ def createInstance():
             {
                 'ResourceType': 'instance',
                 'Tags': [
-                    {'Key': 'Name', 'Value': 'WebInstance'},
+                    {'Key': 'Name', 'Value': f'WebInstance-{uuid.uuid4()}'},
                     {'Key': 'Environment', 'Value': 'Dev'},
                     {'Key': 'AutoStart', 'Value': 'True'}
                 ]
