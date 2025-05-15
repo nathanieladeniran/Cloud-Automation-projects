@@ -14,5 +14,5 @@ provider "aws" {
 }
 
 provider "http" {
-  
+
 }
