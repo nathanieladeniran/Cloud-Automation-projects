@@ -20,3 +20,8 @@ output "instance_id" {
   # value = aws_instance.Nath_server
   value = aws_instance.Quiva_Bastion_server.id
 }
+
+output "rds_endpoint" {
+  description = "Endpoint of RDS created"
+  value       = aws_db_instance.private_db_instance.endpoint
+}
