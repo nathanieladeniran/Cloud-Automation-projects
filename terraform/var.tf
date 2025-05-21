@@ -13,16 +13,22 @@ variable "vpc_cidr_block" {
 }
 
 variable "Environment" {
-  type = list(string)
-  default = [ "test", "staging", "production" ]
+  type    = list(string)
+  default = ["test", "staging", "production"]
 }
 
 variable "Purpose" {
-  type = list(string)
-  default = [ "private", "public" ]
+  type    = list(string)
+  default = ["private", "public"]
 }
 
 variable "Deployed-by" {
-    type = list(string)
-    default = [ "Enigneer", "Senior Engineer" ]
+  type    = list(string)
+  default = ["Enigneer", "Senior Engineer"]
+}
+
+variable "private_server_ip_index" {
+  type        = number
+  default     = 20
+  description = "The host number used to compute private IP within the subnet."
 }
