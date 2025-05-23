@@ -40,6 +40,13 @@ data "aws_ami" "ubuntu" {
 }
 
 # --------------------------------------------------------------
+# Calling dynamo table created ealier with aws cli
+# --------------------------------------------------------------
+data "aws_dynamodb_table" "Quiva_terrform_locks" {
+  name = "Quiva-tfstate-lock"
+}
+
+# --------------------------------------------------------------
 # VPC creation
 # --------------------------------------------------------------
 
@@ -358,6 +365,7 @@ resource "aws_instance" "Quiva_private_server" {
   associate_public_ip_address = false
   key_name                    = aws_key_pair.Quiva_bastion_key.key_name
   private_ip                  = cidrhost(aws_subnet.Quiva_private_subnet[0].cidr_block, var.private_server_ip_index)
+  iam_instance_profile        = aws_iam_instance_profile.Quiva_private_instance_profile.name
 
   user_data = <<-EOF
               #!/bin/bash
@@ -460,19 +468,19 @@ resource "aws_security_group" "private_rds_sg" {
 # Private RDS Instance
 # --------------------------------------------------------------
 resource "aws_db_instance" "private_db_instance" {
-  allocated_storage      = 10
-  identifier             = "private-rds-instance"
-  db_name                = "max_db"
-  engine                 = "mysql"
-  engine_version         = "8.0"
-  instance_class         = "db.t3.micro"
-  username               = "admin"
-  password               = "Ibiyosi#141"
-  parameter_group_name   = "default.mysql8.0"
-  skip_final_snapshot    = true
-  publicly_accessible    = false
-  db_subnet_group_name   = aws_db_subnet_group.private_rdsmain_subnet_group.name
-  vpc_security_group_ids = [aws_security_group.private_rds_sg.id]
+  allocated_storage       = 10
+  identifier              = "private-rds-instance"
+  db_name                 = "max_db"
+  engine                  = "mysql"
+  engine_version          = "8.0"
+  instance_class          = "db.t3.micro"
+  username                = "admin"
+  password                = "Ibiyosi#141"
+  parameter_group_name    = "default.mysql8.0"
+  skip_final_snapshot     = true
+  publicly_accessible     = false
+  db_subnet_group_name    = aws_db_subnet_group.private_rdsmain_subnet_group.name
+  vpc_security_group_ids  = [aws_security_group.private_rds_sg.id]
   backup_retention_period = 7
   backup_window           = "03:00-04:00"
   copy_tags_to_snapshot   = true
@@ -497,9 +505,135 @@ resource "random_id" "identify_number" {
 resource "aws_s3_bucket" "store_bucket" {
   bucket = "buck-${random_id.identify_number.hex}"
   tags = {
-    Name = "App-bucket-${random_id.identify_number.hex}"
+    Name        = "App-bucket-${random_id.identify_number.hex}"
     Purpose     = element(var.Purpose, 0)
     Environment = element(var.Environment, 1)
     Deployed-By = element(var.Deployed-by, 1)
   }
 }
+
+# --------------------------------------------------------------
+# Create IAM Role for EC2
+# --------------------------------------------------------------
+
+resource "aws_iam_role" "Quiva_private_iam_role" {
+  name = "Quiva-private-s3-access-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action = "sts:AssumeRole",
+      Effect = "Allow",
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+    }]
+  })
+}
+
+# --------------------------------------------------------------
+# Create IAM Policy
+# --------------------------------------------------------------
+
+resource "aws_iam_policy" "Quiva_private_iam_policy" {
+  name        = "S3AccessPolicy"
+  description = "Allow EC2 to access S3 bucket"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action = [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:ListBucket",
+        "s3:DeleteObject"
+      ],
+      Effect = "Allow",
+      Resource = [
+        aws_s3_bucket.store_bucket.arn,
+        "${aws_s3_bucket.store_bucket.arn}/*"
+      ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:DeleteItem"
+        ],
+        Resource = data.aws_dynamodb_table.Quiva_terrform_locks.arn
+    }]
+  })
+}
+
+# --------------------------------------------------------------
+# Creating Bucket Policy
+# --------------------------------------------------------------
+
+resource "aws_s3_bucket_policy" "store_bucket_policy" {
+  bucket = aws_s3_bucket.store_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          AWS = aws_iam_role.Quiva_private_iam_role.arn
+        },
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ],
+        Resource = [
+          aws_s3_bucket.store_bucket.arn,
+          "${aws_s3_bucket.store_bucket.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# --------------------------------------------------------------
+# Attach Policy to role
+# --------------------------------------------------------------
+
+resource "aws_iam_role_policy_attachment" "Quiva_attach_s3" {
+  role       = aws_iam_role.Quiva_private_iam_role.name
+  policy_arn = aws_iam_policy.Quiva_private_iam_policy.arn
+}
+
+# --------------------------------------------------------------
+# Instance profile link to role
+# --------------------------------------------------------------
+
+resource "aws_iam_instance_profile" "Quiva_private_instance_profile" {
+  name = "Quiva_private_instance_role_profile"
+  role = aws_iam_role.Quiva_private_iam_role.name
+
+}
+
+# # --------------------------------------------------------------
+# # Create dynamo table
+# # --------------------------------------------------------------
+# resource "aws_dynamodb_table" "Quiva_terrform_locks" {
+#   billing_mode     = "PAY_PER_REQUEST"
+#   hash_key         = "LockID"
+#   name             = "Quiva-tfstate-lock"
+#   stream_enabled   = true
+#   stream_view_type = "NEW_AND_OLD_IMAGES"
+
+#   attribute {
+#     name = "LockID"
+#     type = "S"
+#   }
+#   tags = {
+#     Name        = "Terraform-State-Lock-Table-${random_id.identify_number.hex}"
+#     Purpose     = element(var.Purpose, 0)
+#     Environment = element(var.Environment, 1)
+#     Deployed-By = element(var.Deployed-by, 1)
+#   }
+
+# }
