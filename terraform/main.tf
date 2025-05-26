@@ -344,6 +344,21 @@ resource "aws_security_group" "Quiva_private_sg" {
     security_groups = [aws_security_group.Quiva_Bastion_sg.id]
   }
 
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.Quiva_Bastion_sg.id]
+  }
+
+  ingress {
+    description = "HTTP from Load Balancer SG"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    security_groups = [aws_security_group.lb_sg.id]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -377,10 +392,15 @@ resource "aws_instance" "Quiva_private_server" {
               usermod -a -G docker ec2-user
 
               # Install Nginx
-              amazon-linux-extras enable nginx1 -y
-              yum install nginx -y
-              systemctl start nginx
-              systemctl enable nginx
+              # amazon-linux-extras enable nginx1 -y
+              # yum install nginx -y
+              # systemctl start nginx
+              # systemctl enable nginx
+
+              # Install apache instead on ngix
+              sudo yum install -y httpd
+              sudo systemctl start httpd
+              sudo systemctl enable httpd
               EOF
 
   tags = {
@@ -503,7 +523,7 @@ resource "random_id" "identify_number" {
 }
 
 resource "aws_s3_bucket" "store_bucket" {
-  bucket = "buck-${random_id.identify_number.hex}"
+  bucket = "bucket-${random_id.identify_number.hex}"
   tags = {
     Name        = "App-bucket-${random_id.identify_number.hex}"
     Purpose     = element(var.Purpose, 0)
@@ -637,3 +657,111 @@ resource "aws_iam_instance_profile" "Quiva_private_instance_profile" {
 #   }
 
 # }
+
+# 
+# Load Balancer
+# 
+
+# --------------------------------------------------------------
+# Load balancer security group
+# --------------------------------------------------------------
+resource "aws_security_group" "lb_sg" {
+  name        = "load-balancer-sg"
+  description = "Allow HTTP from the internet"
+  vpc_id      = aws_vpc.Quiva-VPC.id
+
+  ingress {
+    description = "HTTP from anywhere"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+    tags = {
+      Name        = "Load-Balancer-SG-${random_id.identify_number.hex}"
+      Purpose     = element(var.Purpose, 0)
+      Environment = element(var.Environment, 1)
+      Deployed-By = element(var.Deployed-by, 1)
+    }
+
+}
+
+# --------------------------------------------------------------
+# Create target group
+# --------------------------------------------------------------
+
+resource "aws_alb_target_group" "Quiva_app_tg" {
+  name     = "app-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.Quiva-VPC.id
+  target_type = "instance"
+
+  health_check {
+    interval            = 30
+    path                = "/"
+    port                = 80
+    healthy_threshold   = 5
+    unhealthy_threshold = 2
+    timeout             = 5
+    protocol            = "HTTP"
+  }
+}
+
+# --------------------------------------------------------------
+# Create Load balancer
+# --------------------------------------------------------------
+
+resource "aws_lb" "Quiva_app_lb" {
+  name               = "Quiva-app-lb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.lb_sg.id]
+  subnets            = [for subnet in aws_subnet.Quiva_public_subnet : subnet.id]
+
+  enable_deletion_protection = true
+
+  # access_logs {
+  #   bucket  = aws_s3_bucket.store_bucket.id
+  #   prefix  = "App-lb"
+  #   enabled = true
+  # }
+
+  tags = {
+    Name        = "Quiva-Load-Balancer"
+    Purpose     = element(var.Purpose, 0)
+    Environment = element(var.Environment, 1)
+    Deployed-By = element(var.Deployed-by, 1)
+  }
+}
+
+# --------------------------------------------------------------
+# Listener to connect Application Load balancer to target group
+# --------------------------------------------------------------
+
+resource "aws_lb_listener" "Quiva_app_listener" {
+  load_balancer_arn = aws_lb.Quiva_app_lb.arn
+  port              = 80
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_alb_target_group.Quiva_app_tg.arn
+  }
+}
+
+# --------------------------------------------------------------
+# Attach instance to ALB
+# --------------------------------------------------------------
+resource "aws_lb_target_group_attachment" "example" {
+  target_group_arn = aws_alb_target_group.Quiva_app_tg.arn
+  target_id        = aws_instance.Quiva_private_server.id
+  port             = 80
+}
