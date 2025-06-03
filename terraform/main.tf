@@ -47,6 +47,13 @@ data "aws_dynamodb_table" "Quiva_terrform_locks" {
 }
 
 # --------------------------------------------------------------
+# User data for ec2 template file
+# --------------------------------------------------------------
+data "template_file" "apache_user_data" {
+  template = file("${path.module}/apache_user_data.tpl")
+}
+
+# --------------------------------------------------------------
 # VPC creation
 # --------------------------------------------------------------
 
@@ -81,6 +88,13 @@ resource "aws_key_pair" "Quiva_bastion_key" {
   key_name   = "Quiva-Key-Pair"
   public_key = tls_private_key.ssh_key.public_key_openssh
   # public_key = file("${path.module}/Quiva-Key.pub") #file("~/.ssh/Quiva-Key.pub")  # first generate the public key (ssh-keygen -t rsa -b 4096 -f ~/.ssh/Quiva-Key) then access it with this line
+
+  tags = {
+    Name        = "Quiva_Bastion_key"
+    Purpose     = element(var.Purpose, 1)
+    Environment = element(var.Environment, 1)
+    Deployed-By = element(var.Deployed-by, 1)
+  }
 }
 
 
@@ -352,10 +366,10 @@ resource "aws_security_group" "Quiva_private_sg" {
   }
 
   ingress {
-    description = "HTTP from Load Balancer SG"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
+    description     = "HTTP from Load Balancer SG"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
     security_groups = [aws_security_group.lb_sg.id]
   }
 
@@ -381,27 +395,28 @@ resource "aws_instance" "Quiva_private_server" {
   key_name                    = aws_key_pair.Quiva_bastion_key.key_name
   private_ip                  = cidrhost(aws_subnet.Quiva_private_subnet[0].cidr_block, var.private_server_ip_index)
   iam_instance_profile        = aws_iam_instance_profile.Quiva_private_instance_profile.name
+  user_data                   = data.template_file.apache_user_data.rendered
 
-  user_data = <<-EOF
-              #!/bin/bash
-              yum update -y
+  # user_data = <<-EOF
+  #             #!/bin/bash
+  #             yum update -y
 
-              # Install Docker
-              amazon-linux-extras install docker -y
-              service docker start
-              usermod -a -G docker ec2-user
+  #             # Install Docker
+  #             amazon-linux-extras install docker -y
+  #             service docker start
+  #             usermod -a -G docker ec2-user
 
-              # Install Nginx
-              # amazon-linux-extras enable nginx1 -y
-              # yum install nginx -y
-              # systemctl start nginx
-              # systemctl enable nginx
+  #             # Install Nginx
+  #             # amazon-linux-extras enable nginx1 -y
+  #             # yum install nginx -y
+  #             # systemctl start nginx
+  #             # systemctl enable nginx
 
-              # Install apache instead on ngix
-              sudo yum install -y httpd
-              sudo systemctl start httpd
-              sudo systemctl enable httpd
-              EOF
+  #             # Install apache instead on ngix
+  #             sudo yum install -y httpd
+  #             sudo systemctl start httpd
+  #             sudo systemctl enable httpd
+  #             EOF
 
   tags = {
     Name        = "Quiva_private_server"
@@ -549,6 +564,13 @@ resource "aws_iam_role" "Quiva_private_iam_role" {
       }
     }]
   })
+
+  tags = {
+    Name        = "Quiva_iam_role"
+    Purpose     = element(var.Purpose, 1)
+    Environment = element(var.Environment, 1)
+    Deployed-By = element(var.Deployed-by, 1)
+  }
 }
 
 # --------------------------------------------------------------
@@ -584,6 +606,13 @@ resource "aws_iam_policy" "Quiva_private_iam_policy" {
         Resource = data.aws_dynamodb_table.Quiva_terrform_locks.arn
     }]
   })
+
+  tags = {
+    Name        = "Quiva_iam_policy"
+    Purpose     = element(var.Purpose, 1)
+    Environment = element(var.Environment, 1)
+    Deployed-By = element(var.Deployed-by, 1)
+  }
 }
 
 # --------------------------------------------------------------
@@ -632,7 +661,12 @@ resource "aws_iam_role_policy_attachment" "Quiva_attach_s3" {
 resource "aws_iam_instance_profile" "Quiva_private_instance_profile" {
   name = "Quiva_private_instance_role_profile"
   role = aws_iam_role.Quiva_private_iam_role.name
-
+tags = {
+    Name        = "Quiva_instance_profile"
+    Purpose     = element(var.Purpose, 1)
+    Environment = element(var.Environment, 1)
+    Deployed-By = element(var.Deployed-by, 1)
+  }
 }
 
 # # --------------------------------------------------------------
@@ -685,12 +719,12 @@ resource "aws_security_group" "lb_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-    tags = {
-      Name        = "Load-Balancer-SG-${random_id.identify_number.hex}"
-      Purpose     = element(var.Purpose, 0)
-      Environment = element(var.Environment, 1)
-      Deployed-By = element(var.Deployed-by, 1)
-    }
+  tags = {
+    Name        = "Load-Balancer-SG-${random_id.identify_number.hex}"
+    Purpose     = element(var.Purpose, 0)
+    Environment = element(var.Environment, 1)
+    Deployed-By = element(var.Deployed-by, 1)
+  }
 
 }
 
@@ -699,10 +733,10 @@ resource "aws_security_group" "lb_sg" {
 # --------------------------------------------------------------
 
 resource "aws_alb_target_group" "Quiva_app_tg" {
-  name     = "app-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.Quiva-VPC.id
+  name        = "app-tg"
+  port        = 80
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.Quiva-VPC.id
   target_type = "instance"
 
   health_check {
@@ -754,6 +788,13 @@ resource "aws_lb_listener" "Quiva_app_listener" {
   default_action {
     type             = "forward"
     target_group_arn = aws_alb_target_group.Quiva_app_tg.arn
+  }
+
+  tags = {
+    Name        = "Quiva_lb_listener"
+    Purpose     = element(var.Purpose, 1)
+    Environment = element(var.Environment, 1)
+    Deployed-By = element(var.Deployed-by, 1)
   }
 }
 
