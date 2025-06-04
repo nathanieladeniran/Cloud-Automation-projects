@@ -1,57 +1,4 @@
 
-# --------------------------------------------------------------
-# Get IP address automatically
-# --------------------------------------------------------------
-data "http" "sys_ip" {
-  url = "https://ipv4.icanhazip.com"
-}
-
-# --------------------------------------------------------------
-# Fetch Amazon AMI automatically
-# --------------------------------------------------------------
-
-data "aws_ami" "amazon_linux" {
-  most_recent = true
-  filter {
-    name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
-  }
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-  owners = ["amazon"] # Amazon's official AMIs
-}
-
-# --------------------------------------------------------------
-# Fetch Ubuntu AMI automatically
-# --------------------------------------------------------------
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
-  }
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-  owners = ["099720109477"] # Canonical (official Ubuntu AMIs)
-}
-
-# --------------------------------------------------------------
-# Calling dynamo table created ealier with aws cli
-# --------------------------------------------------------------
-data "aws_dynamodb_table" "Quiva_terrform_locks" {
-  name = "Quiva-tfstate-lock"
-}
-
-# --------------------------------------------------------------
-# User data for ec2 template file
-# --------------------------------------------------------------
-data "template_file" "apache_user_data" {
-  template = file("${path.module}/apache_user_data.tpl")
-}
 
 # --------------------------------------------------------------
 # VPC creation
@@ -60,12 +7,12 @@ data "template_file" "apache_user_data" {
 resource "aws_vpc" "Quiva-VPC" {
   cidr_block           = var.vpc_cidr_block
   enable_dns_hostnames = true #DNS name won’t show unless DNS hostnames are enabled on your VPC with this line
-  tags = {
-    Name        = "Quiva_vpc"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_vpc_${random_id.identify_number.hex}"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -89,12 +36,12 @@ resource "aws_key_pair" "Quiva_bastion_key" {
   public_key = tls_private_key.ssh_key.public_key_openssh
   # public_key = file("${path.module}/Quiva-Key.pub") #file("~/.ssh/Quiva-Key.pub")  # first generate the public key (ssh-keygen -t rsa -b 4096 -f ~/.ssh/Quiva-Key) then access it with this line
 
-  tags = {
-    Name        = "Quiva_Bastion_key"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_Bastion_key"
+    }
+  )
 }
 
 
@@ -108,12 +55,13 @@ resource "aws_subnet" "Quiva_public_subnet" {
   cidr_block              = cidrsubnet(aws_vpc.Quiva-VPC.cidr_block, 8, count.index)
   availability_zone       = element(var.availability_zone, count.index)
   map_public_ip_on_launch = true #Only used when the subnet is for the public
-  tags = {
-    Name        = "Quiva_public_subnet_${substr(element(var.availability_zone, count.index), -2, 2)}"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_public_subnet_${substr(element(var.availability_zone, count.index), -2, 2)}"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -122,12 +70,13 @@ resource "aws_subnet" "Quiva_public_subnet" {
 
 resource "aws_internet_gateway" "Quiva_igw" {
   vpc_id = aws_vpc.Quiva-VPC.id
-  tags = {
-    Name        = "Quiva_igw"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_igw"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -140,12 +89,13 @@ resource "aws_route_table" "Quiva_public_route_table" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.Quiva_igw.id
   }
-  tags = {
-    Name        = "Quiva_pubic_rt"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_pubic_rt"
+    }
+  )
 
 }
 
@@ -168,12 +118,12 @@ resource "aws_security_group" "Quiva_Bastion_sg" {
   name        = "Quiva Public SG"
   description = "Allow traffic from ssg"
 
-  tags = {
-    Name        = "Quiva_public_sg"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_public_sg"
+    }
+  )
 
   ingress {
     from_port = 22
@@ -214,12 +164,13 @@ resource "aws_eip" "Quiva_bastion_eip" {
   depends_on = [
     aws_internet_gateway.Quiva_igw
   ]
-  tags = {
-    Name        = "Quiva_Bastion_EIP"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_Bastion_EIP"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -244,12 +195,12 @@ resource "aws_instance" "Quiva_Bastion_server" {
   key_name                    = aws_key_pair.Quiva_bastion_key.key_name
   # key_name = "S-key"  #use this if the key has been created before and its available on the aws console 
 
-  tags = {
-    Name        = "Quiva_public_server"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_public_server"
+    }
+  )
 }
 
 #                        
@@ -265,12 +216,13 @@ resource "aws_subnet" "Quiva_private_subnet" {
   cidr_block              = cidrsubnet(aws_vpc.Quiva-VPC.cidr_block, 8, count.index + 10)
   availability_zone       = element(var.availability_zone, count.index)
   map_public_ip_on_launch = false
-  tags = {
-    Name        = "Quiva_private_subnet_${substr(element(var.availability_zone, count.index), -2, 2)}"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_private_subnet_${substr(element(var.availability_zone, count.index), -2, 2)}"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -280,12 +232,13 @@ resource "aws_eip" "Quiva_nat_eip" {
   depends_on = [
     aws_internet_gateway.Quiva_igw
   ]
-  tags = {
-    Name        = "Quiva_Nat_EIP"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_Nat_EIP"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -298,13 +251,12 @@ resource "aws_nat_gateway" "Quiva_nat_gateway" {
     aws_internet_gateway.Quiva_igw
   ]
 
-  tags = {
-    Name        = "Quiva_Nat_Gateway"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
-
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_Nat_Gateway"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -318,12 +270,12 @@ resource "aws_route_table" "Quiva_private_route_table" {
     nat_gateway_id = aws_nat_gateway.Quiva_nat_gateway.id
   }
 
-  tags = {
-    Name        = "Quiva_private_rt"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_private_rt"
+    }
+  )
 
 }
 
@@ -344,12 +296,13 @@ resource "aws_security_group" "Quiva_private_sg" {
   vpc_id      = aws_vpc.Quiva-VPC.id
   description = "Allow SSH from Bastion host alone"
   name        = "Quiva Private SG"
-  tags = {
-    Name        = "Quiva_private_sg"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_private_sg"
+    }
+  )
 
   ingress {
     from_port       = 22
@@ -418,13 +371,12 @@ resource "aws_instance" "Quiva_private_server" {
   #             sudo systemctl enable httpd
   #             EOF
 
-  tags = {
-    Name        = "Quiva_private_server"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
-
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_private_server"
+    }
+  )
 }
 
 #                        
@@ -441,12 +393,12 @@ resource "aws_subnet" "private_rds_subnet" {
   cidr_block        = cidrsubnet(aws_vpc.Quiva-VPC.cidr_block, 8, count.index + 20)
   availability_zone = element(var.availability_zone, count.index)
 
-  tags = {
-    Name        = "Quiva_private_rds_subnet_${substr(element(var.availability_zone, count.index), -2, 2)}"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_private_rds_subnet_${substr(element(var.availability_zone, count.index), -2, 2)}"
+    }
+  )
 
 }
 
@@ -459,12 +411,12 @@ resource "aws_db_subnet_group" "private_rdsmain_subnet_group" {
   description = "Private subnets for RDS instance"
   subnet_ids  = aws_subnet.private_rds_subnet[*].id
 
-  tags = {
-    Name        = "RDS_Subnet_Group"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "RDS_Subnet_Group"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -475,18 +427,28 @@ resource "aws_security_group" "private_rds_sg" {
   name        = "private_rds_sg"
   description = "Allow MySQL access from private subnet"
 
-  tags = {
-    Name        = "Quiva_rds_sg"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_rds_sg"
+    }
+  )
 
   ingress {
+    description     = "Allow MySQL from Bastion"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
-    security_groups = [aws_security_group.Quiva_private_sg.id]
+    security_groups = [aws_security_group.Quiva_Bastion_sg.id]
+  }
+
+  ingress {
+    description     = "Allow MySQL from Private App Servers"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.Quiva_private_sg.id] # EC2 app server SG
   }
 
   egress {
@@ -521,12 +483,12 @@ resource "aws_db_instance" "private_db_instance" {
   copy_tags_to_snapshot   = true
   multi_az                = true
 
-  tags = {
-    Name        = "Quiva_rds"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_rds"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -539,12 +501,13 @@ resource "random_id" "identify_number" {
 
 resource "aws_s3_bucket" "store_bucket" {
   bucket = "bucket-${random_id.identify_number.hex}"
-  tags = {
-    Name        = "App-bucket-${random_id.identify_number.hex}"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "App-bucket-${random_id.identify_number.hex}"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -565,12 +528,12 @@ resource "aws_iam_role" "Quiva_private_iam_role" {
     }]
   })
 
-  tags = {
-    Name        = "Quiva_iam_role"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_iam_role"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -607,12 +570,12 @@ resource "aws_iam_policy" "Quiva_private_iam_policy" {
     }]
   })
 
-  tags = {
-    Name        = "Quiva_iam_policy"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_iam_policy"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -661,12 +624,13 @@ resource "aws_iam_role_policy_attachment" "Quiva_attach_s3" {
 resource "aws_iam_instance_profile" "Quiva_private_instance_profile" {
   name = "Quiva_private_instance_role_profile"
   role = aws_iam_role.Quiva_private_iam_role.name
-tags = {
-    Name        = "Quiva_instance_profile"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_instance_profile"
+    }
+  )
 }
 
 # # --------------------------------------------------------------
@@ -719,13 +683,12 @@ resource "aws_security_group" "lb_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name        = "Load-Balancer-SG-${random_id.identify_number.hex}"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
-
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Load_Balancer_SG_${random_id.identify_number.hex}"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -761,7 +724,7 @@ resource "aws_lb" "Quiva_app_lb" {
   security_groups    = [aws_security_group.lb_sg.id]
   subnets            = [for subnet in aws_subnet.Quiva_public_subnet : subnet.id]
 
-  enable_deletion_protection = true
+  # enable_deletion_protection = true
 
   # access_logs {
   #   bucket  = aws_s3_bucket.store_bucket.id
@@ -769,12 +732,12 @@ resource "aws_lb" "Quiva_app_lb" {
   #   enabled = true
   # }
 
-  tags = {
-    Name        = "Quiva-Load-Balancer"
-    Purpose     = element(var.Purpose, 0)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_Load_Balancer"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -790,12 +753,13 @@ resource "aws_lb_listener" "Quiva_app_listener" {
     target_group_arn = aws_alb_target_group.Quiva_app_tg.arn
   }
 
-  tags = {
-    Name        = "Quiva_lb_listener"
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
-  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "Quiva_lb_listener"
+    }
+  )
 }
 
 # --------------------------------------------------------------
@@ -806,3 +770,95 @@ resource "aws_lb_target_group_attachment" "example" {
   target_id        = aws_instance.Quiva_private_server.id
   port             = 80
 }
+
+#==== Auto scaling Group =====#
+
+# --------------------------------------------------------------
+# Private server LT and autoscaling group
+# --------------------------------------------------------------
+
+resource "aws_launch_template" "Quiva_private_LT" {
+  name                   = "Quiva-private-lt"
+  image_id               = data.aws_ami.amazon_linux.id
+  instance_type          = "t2.micro"
+  key_name               = aws_key_pair.Quiva_bastion_key.key_name
+  vpc_security_group_ids = [aws_security_group.Quiva_private_sg.id]
+  user_data              = base64encode(data.template_file.apache_user_data.rendered)
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.Quiva_private_instance_profile.name
+  }
+
+  # user_data = base64encode(<<-EOF
+  #   #!/bin/bash
+  #   # your user data script here
+  # EOF
+  # )
+  block_device_mappings {
+    device_name = "/dev/sdf"
+
+    ebs {
+      volume_size = 20
+    }
+  }
+
+  capacity_reservation_specification {
+    capacity_reservation_preference = "open"
+  }
+
+  # cpu_options {  
+  #   core_count       = 4
+  #   threads_per_core = 2
+  # } Not needed again because t2.micro does not support this, you can only use it if you use another instance type line t3.micro
+
+  ebs_optimized = true
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = merge(
+      local.common_tags,
+      {
+        Name = "Quiva_private_LT_${random_id.identify_number.hex}"
+      }
+    )
+  }
+}
+
+resource "aws_autoscaling_group" "Quiva_App_ASG" {
+  desired_capacity = 2
+  max_size         = 3
+  min_size         = 1
+  force_delete     = true
+  launch_template {
+    id      = aws_launch_template.Quiva_private_LT.id
+    version = "$Latest"
+  }
+  vpc_zone_identifier = aws_subnet.Quiva_private_subnet[*].id # vpc_zone_identifier = [for subnet in Quiva_private_subnet : subnet.id]
+  #   load_balancers    = [aws_lb.qserver_app_alb.id]
+  health_check_type = "EC2"
+  dynamic "tag" {
+    for_each = local.autoscale_tags
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
+    }
+  }
+
+}
+
+# # Allow app instances to connect to DB this not needed again, its already specified using another method in aws_security_group.private_rds_sg
+# resource "aws_security_group_rule" "allow_app_to_db" {
+#   type                     = "ingress"
+#   from_port                = 3306 # or 3306 for MySQL
+#   to_port                  = 3306
+#   protocol                 = "tcp"
+#   security_group_id        = aws_security_group.private_rds_sg.id   # DB security group
+#   source_security_group_id = aws_security_group.Quiva_private_sg.id # App instances SG
+#   description              = "Allow app instances to access DB"
+# }
