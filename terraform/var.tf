@@ -14,12 +14,12 @@ variable "vpc_cidr_block" {
 
 variable "Environment" {
   type    = list(string)
-  default = ["test", "staging", "production"]
+  default = ["Testing", "Staging", "Production"]
 }
 
 variable "Purpose" {
   type    = list(string)
-  default = ["private", "public"]
+  default = ["Private", "Public"]
 }
 
 variable "Deployed-by" {

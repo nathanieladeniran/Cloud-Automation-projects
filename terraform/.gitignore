@@ -17,3 +17,6 @@ terraform.tfvars
 
 #vscode
 .vscode/
+
+*/.DS_Store
+.DS_Store
