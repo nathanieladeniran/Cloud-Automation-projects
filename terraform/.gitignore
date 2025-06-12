@@ -19,4 +19,5 @@ terraform.tfvars
 .vscode/
 
 */.DS_Store
-.DS_Store
+.DS_StoreQuiva-Key-Pair.pem
+Nath-Key.pub
