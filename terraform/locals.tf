@@ -3,9 +3,9 @@
 # --------------------------------------------------------------
 locals {
   common_tags = {
-    Purpose     = element(var.Purpose, 1)
-    Environment = element(var.Environment, 1)
-    Deployed-By = element(var.Deployed-by, 1)
+    Purpose     = var.Purpose
+    Environment = var.Environment
+    Deployed-By = var.Deployed-by
   }
 
   autoscale_tags = merge(

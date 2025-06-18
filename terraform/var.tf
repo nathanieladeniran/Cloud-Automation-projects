@@ -13,18 +13,18 @@ variable "vpc_cidr_block" {
 }
 
 variable "Environment" {
-  type    = list(string)
-  default = ["Testing", "Staging", "Production"]
+  type    = string
+  default = "Testing"
 }
 
 variable "Purpose" {
-  type    = list(string)
-  default = ["Private", "Public"]
+  type    = string
+  default = "Private"
 }
 
 variable "Deployed-by" {
-  type    = list(string)
-  default = ["Enigneer", "Senior Engineer"]
+  type    = string
+  default = "Senior Engineer"
 }
 
 variable "private_server_ip_index" {
