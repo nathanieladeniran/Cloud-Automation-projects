@@ -1,0 +1,4 @@
+config/aws_config.json
+config/__pycache__
+__pycache__/
+../.DS_Store

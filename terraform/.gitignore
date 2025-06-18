@@ -1,0 +1,26 @@
+# Local .terraform directories
+.terraform/
+
+# Local .terraform lockfile
+.terraform.lock.hcl
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+
+# Terraform plan files
+*.tfplan
+
+# variable files
+terraform.tfvars
+*.auto.tfvars
+
+#vscode
+.vscode/
+
+*/.DS_Store
+.DS_Store
+
+#keys
+*.pem
+*.pub
