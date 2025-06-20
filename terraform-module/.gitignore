@@ -18,9 +18,9 @@ terraform.tfvars
 #vscode
 .vscode/
 
-*/.DS_Store
-.DS_Store
-
 #keys
 *.pem
 *.pub
+
+**/.DS_Store
+.DS_Store
